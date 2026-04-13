@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Parties – Bizflow</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout" id="app">
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">Parties &amp; Customers</span>
+      <div class="topbar-actions">
+        <div class="search-bar">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="search" type="text" placeholder="Search name or phone..." oninput="filterParties()">
+        </div>
+        <button class="btn btn-primary" onclick="openAdd()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Party
+        </button>
+      </div>
+    </div>
+    <div class="page-content">
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Name</th>
+                <th>Phone</th>
+                <th>GSTIN</th>
+                <th>Address</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="parties-tbody">
+              <tr><td colspan="6" style="text-align:center;padding:40px;color:var(--text3)">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-backdrop" id="party-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Add Party</span>
+      <button class="modal-close" onclick="closeModal('party-modal')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-id">
+      <div class="form-group">
+        <label class="form-label">Party / Customer Name *</label>
+        <input id="f-name" class="form-control" type="text" placeholder="e.g. Sharma Traders">
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Phone</label>
+          <input id="f-phone" class="form-control" type="text" placeholder="10-digit mobile">
+        </div>
+        <div class="form-group">
+          <label class="form-label">GSTIN</label>
+          <input id="f-gstin" class="form-control" type="text" placeholder="15-char GSTIN" style="font-family:var(--font-mono)">
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Address</label>
+        <input id="f-address" class="form-control" type="text" placeholder="Full address">
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('party-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveParty()">Save Party</button>
+    </div>
+  </div>
+</div>
+
+<!-- Ledger Modal -->
+<div class="modal-backdrop" id="ledger-modal">
+  <div class="modal" style="max-width:620px">
+    <div class="modal-header">
+      <span class="modal-title" id="ledger-title">Party Ledger</span>
+      <button class="modal-close" onclick="closeModal('ledger-modal')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body" id="ledger-body">Loading...</div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('parties.html'));
+requireAuth();
+
+let allParties = [];
+
+async function load() {
+  try {
+    allParties = await api.get('/parties');
+    renderTable(allParties);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function renderTable(parties) {
+  const tbody = document.getElementById('parties-tbody');
+  if (!parties.length) {
+    tbody.innerHTML = `<tr><td colspan="6"><div class="empty-state"><p>No parties added yet.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = parties.map((p, i) => `
+    <tr>
+      <td style="color:var(--text3)">${i+1}</td>
+      <td><strong>${escHtml(p.name)}</strong></td>
+      <td>${p.phone || '<span style="color:var(--text3)">—</span>'}</td>
+      <td style="font-family:var(--font-mono);font-size:12px">${p.gstin || '<span style="color:var(--text3)">—</span>'}</td>
+      <td style="color:var(--text2);max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${p.address || '—'}</td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-secondary btn-sm" onclick="viewLedger(${p.id}, '${escHtml(p.name)}')">Ledger</button>
+          <button class="btn btn-secondary btn-sm btn-icon" onclick="openEdit(${p.id})" title="Edit">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn btn-danger btn-sm btn-icon" onclick="deleteParty(${p.id}, '${escHtml(p.name)}')" title="Delete">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`).join('');
+}
+
+function filterParties() {
+  const q = document.getElementById('search').value.toLowerCase();
+  renderTable(q ? allParties.filter(p => p.name.toLowerCase().includes(q) || (p.phone||'').includes(q)) : allParties);
+}
+
+function openAdd() {
+  document.getElementById('modal-title').textContent = 'Add Party';
+  document.getElementById('edit-id').value = '';
+  ['name','phone','gstin','address'].forEach(f => document.getElementById('f-'+f).value = '');
+  openModal('party-modal');
+}
+
+function openEdit(id) {
+  const p = allParties.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('modal-title').textContent = 'Edit Party';
+  document.getElementById('edit-id').value = p.id;
+  document.getElementById('f-name').value = p.name;
+  document.getElementById('f-phone').value = p.phone || '';
+  document.getElementById('f-gstin').value = p.gstin || '';
+  document.getElementById('f-address').value = p.address || '';
+  openModal('party-modal');
+}
+
+async function saveParty() {
+  const id = document.getElementById('edit-id').value;
+  const body = {
+    name: document.getElementById('f-name').value.trim(),
+    phone: document.getElementById('f-phone').value.trim() || null,
+    gstin: document.getElementById('f-gstin').value.trim() || null,
+    address: document.getElementById('f-address').value.trim() || null
+  };
+  if (!body.name) { showToast('Party name is required', 'error'); return; }
+  try {
+    if (id) await api.put('/parties/' + id, body);
+    else await api.post('/parties', body);
+    closeModal('party-modal');
+    showToast(id ? 'Party updated' : 'Party added', 'success');
+    await load();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteParty(id, name) {
+  if (!confirm(`Delete "${name}"?`)) return;
+  try {
+    await api.del('/parties/' + id);
+    showToast('Party deleted', 'success');
+    await load();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function viewLedger(id, name) {
+  document.getElementById('ledger-title').textContent = name + ' – Ledger';
+  document.getElementById('ledger-body').innerHTML = '<div style="text-align:center;padding:30px;color:var(--text3)">Loading...</div>';
+  openModal('ledger-modal');
+  try {
+    const invoices = await api.get('/parties/' + id + '/ledger');
+    if (!invoices.length) {
+      document.getElementById('ledger-body').innerHTML = '<div class="empty-state"><p>No invoices for this party.</p></div>';
+      return;
+    }
+    let totalDue = 0;
+    const rows = invoices.map(inv => {
+      const due = parseFloat(inv.total) - parseFloat(inv.paid_amount || 0);
+      if (due > 0) totalDue += due;
+      return `<tr>
+        <td><strong>${inv.invoice_no}</strong></td>
+        <td>${fmtDate(inv.created_at)}</td>
+        <td>${fmtRupee(inv.total)}</td>
+        <td>${fmtRupee(inv.paid_amount||0)}</td>
+        <td style="color:${due > 0 ? 'var(--danger)' : 'var(--success)'}"><strong>${fmtRupee(due)}</strong></td>
+        <td>${statusBadge(inv.status)}</td>
+      </tr>`;
+    }).join('');
+    document.getElementById('ledger-body').innerHTML = `
+      <table class="table" style="font-size:13px">
+        <thead><tr><th>Invoice</th><th>Date</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="text-align:right;margin-top:12px;font-size:14px;font-weight:600;color:var(--danger)">
+        Total Outstanding: ${fmtRupee(totalDue)}
+      </div>`;
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function escHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+load();
+</script>
+</body>
+</html>

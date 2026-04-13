@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Products – Bizflow</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout" id="app">
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">Products &amp; Inventory</span>
+      <div class="topbar-actions">
+        <div class="search-bar">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+          <input id="search" type="text" placeholder="Search products..." oninput="filterProducts()">
+        </div>
+        <select id="cat-filter" class="form-control" style="width:150px" onchange="filterProducts()">
+          <option value="">All Categories</option>
+        </select>
+        <button class="btn btn-primary" onclick="openAdd()">
+          <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" width="14" height="14"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Product
+        </button>
+      </div>
+    </div>
+    <div class="page-content">
+      <div class="card">
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>#</th>
+                <th>Product Name</th>
+                <th>Category</th>
+                <th>Price</th>
+                <th>Stock</th>
+                <th>Unit</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="products-tbody">
+              <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text3)">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Add/Edit Modal -->
+<div class="modal-backdrop" id="product-modal">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="modal-title">Add Product</span>
+      <button class="modal-close" onclick="closeModal('product-modal')">
+        <svg width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="edit-id">
+      <div class="form-row">
+        <div class="form-group" style="grid-column:1/-1">
+          <label class="form-label">Product Name *</label>
+          <input id="f-name" class="form-control" type="text" placeholder="e.g. Basmati Rice 5kg">
+        </div>
+      </div>
+      <div class="form-row">
+        <div class="form-group">
+          <label class="form-label">Price (₹) *</label>
+          <input id="f-price" class="form-control" type="number" step="0.01" min="0" placeholder="0.00">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Quantity</label>
+          <input id="f-qty" class="form-control" type="number" min="0" placeholder="0">
+        </div>
+        <div class="form-group">
+          <label class="form-label">Unit</label>
+          <select id="f-unit" class="form-control">
+            <option value="pcs">pcs</option>
+            <option value="kg">kg</option>
+            <option value="g">g</option>
+            <option value="L">L</option>
+            <option value="mL">mL</option>
+            <option value="box">box</option>
+            <option value="bag">bag</option>
+            <option value="dozen">dozen</option>
+            <option value="pair">pair</option>
+            <option value="roll">roll</option>
+            <option value="m">m</option>
+            <option value="sqft">sqft</option>
+          </select>
+        </div>
+      </div>
+      <div class="form-group">
+        <label class="form-label">Category</label>
+        <input id="f-cat" class="form-control" type="text" placeholder="e.g. Groceries, Electronics">
+        <div class="form-hint">Type or use an existing category</div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('product-modal')">Cancel</button>
+      <button class="btn btn-primary" onclick="saveProduct()">Save Product</button>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('inventory.html'));
+requireAuth();
+
+let allProducts = [];
+
+async function load() {
+  try {
+    allProducts = await api.get('/products');
+    const cats = [...new Set(allProducts.map(p => p.category).filter(Boolean))].sort();
+    const sel = document.getElementById('cat-filter');
+    cats.forEach(c => { const o = document.createElement('option'); o.value = c; o.textContent = c; sel.appendChild(o); });
+    renderTable(allProducts);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function renderTable(products) {
+  const tbody = document.getElementById('products-tbody');
+  if (!products.length) {
+    tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>No products found. Add your first product.</p></div></td></tr>`;
+    return;
+  }
+  tbody.innerHTML = products.map((p, i) => {
+    const low = p.quantity <= 5;
+    const stockBadge = low
+      ? `<span class="badge badge-danger">${p.quantity} ⚠</span>`
+      : `<span class="badge badge-success">${p.quantity}</span>`;
+    return `<tr>
+      <td style="color:var(--text3)">${i+1}</td>
+      <td><strong>${escHtml(p.name)}</strong></td>
+      <td><span class="badge badge-gray">${escHtml(p.category||'General')}</span></td>
+      <td><strong>${fmtRupee(p.price)}</strong></td>
+      <td>${stockBadge}</td>
+      <td style="color:var(--text2)">${p.unit||'pcs'}</td>
+      <td>
+        <div class="actions">
+          <button class="btn btn-secondary btn-sm btn-icon" title="Edit" onclick="openEdit(${p.id})">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" width="13" height="13"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+          </button>
+          <button class="btn btn-danger btn-sm btn-icon" title="Delete" onclick="deleteProduct(${p.id}, '${escHtml(p.name)}')">
+            <svg fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2" width="13" height="13"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6"/><path d="M10 11v6M14 11v6"/></svg>
+          </button>
+        </div>
+      </td>
+    </tr>`;
+  }).join('');
+}
+
+function filterProducts() {
+  const q = document.getElementById('search').value.toLowerCase();
+  const cat = document.getElementById('cat-filter').value;
+  const filtered = allProducts.filter(p =>
+    (!q || p.name.toLowerCase().includes(q)) &&
+    (!cat || p.category === cat)
+  );
+  renderTable(filtered);
+}
+
+function openAdd() {
+  document.getElementById('modal-title').textContent = 'Add Product';
+  document.getElementById('edit-id').value = '';
+  ['name','price','qty','unit','cat'].forEach(f => {
+    const el = document.getElementById('f-'+f);
+    if (f === 'unit') el.value = 'pcs';
+    else el.value = '';
+  });
+  document.getElementById('f-qty').value = 0;
+  openModal('product-modal');
+}
+
+async function openEdit(id) {
+  const p = allProducts.find(x => x.id === id);
+  if (!p) return;
+  document.getElementById('modal-title').textContent = 'Edit Product';
+  document.getElementById('edit-id').value = p.id;
+  document.getElementById('f-name').value = p.name;
+  document.getElementById('f-price').value = p.price;
+  document.getElementById('f-qty').value = p.quantity;
+  document.getElementById('f-unit').value = p.unit || 'pcs';
+  document.getElementById('f-cat').value = p.category || '';
+  openModal('product-modal');
+}
+
+async function saveProduct() {
+  const id = document.getElementById('edit-id').value;
+  const body = {
+    name: document.getElementById('f-name').value.trim(),
+    price: parseFloat(document.getElementById('f-price').value),
+    quantity: parseInt(document.getElementById('f-qty').value) || 0,
+    unit: document.getElementById('f-unit').value,
+    category: document.getElementById('f-cat').value.trim() || 'General'
+  };
+  if (!body.name) { showToast('Product name is required', 'error'); return; }
+  if (isNaN(body.price)) { showToast('Valid price is required', 'error'); return; }
+  try {
+    if (id) await api.put('/products/' + id, body);
+    else await api.post('/products', body);
+    closeModal('product-modal');
+    showToast(id ? 'Product updated' : 'Product added', 'success');
+    await load();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+async function deleteProduct(id, name) {
+  if (!confirm(`Delete "${name}"? This cannot be undone.`)) return;
+  try {
+    await api.del('/products/' + id);
+    showToast('Product deleted', 'success');
+    await load();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function escHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+load();
+</script>
+</body>
+</html>

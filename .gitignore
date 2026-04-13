@@ -1,0 +1,14 @@
+backend/.env
+node_modules/
+
+# macOS system files
+.DS_Store
+.AppleDouble
+.LSOverride
+*.swp
+*.swo
+
+# IDE
+.vscode/
+.idea/
+*.log

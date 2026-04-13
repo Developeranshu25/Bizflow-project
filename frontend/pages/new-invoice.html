@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>New Invoice – Bizflow</title>
+<link rel="stylesheet" href="../css/style.css">
+<style>
+.invoice-builder { display: grid; grid-template-columns: 1fr 320px; gap: 20px; align-items: start; }
+.section-title { font-size: 12px; font-weight: 600; color: var(--text2); text-transform: uppercase; letter-spacing: .5px; margin-bottom: 12px; }
+.items-wrap { overflow-x: auto; }
+.add-row-btn { margin-top: 10px; width: 100%; padding: 8px; border: 1.5px dashed var(--border); background: transparent; border-radius: 7px; color: var(--text2); font-size: 13px; cursor: pointer; font-family: inherit; transition: .15s; }
+.add-row-btn:hover { border-color: var(--brand); color: var(--brand); background: var(--brand-light); }
+.gst-row { display: flex; align-items: center; gap: 10px; }
+.gst-row label { font-size: 12px; color: var(--text2); white-space: nowrap; }
+.gst-row input { width: 70px; }
+@media(max-width:900px){ .invoice-builder{ grid-template-columns:1fr; } }
+</style>
+</head>
+<body>
+<div class="app-layout" id="app">
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">New Invoice</span>
+      <div class="topbar-actions">
+        <button class="btn btn-secondary" onclick="history.back()">Cancel</button>
+        <button class="btn btn-primary" onclick="submitInvoice()">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><polyline points="20 6 9 17 4 12"/></svg>
+          Create Invoice
+        </button>
+      </div>
+    </div>
+    <div class="page-content">
+      <div class="invoice-builder">
+        <!-- Left: items + party -->
+        <div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-body">
+              <div class="section-title">Party Details</div>
+              <div class="form-row">
+                <div class="form-group">
+                  <label class="form-label">Party (Customer)</label>
+                  <select id="party-select" class="form-control">
+                    <option value="">Walk-in Customer</option>
+                  </select>
+                </div>
+                <div class="form-group">
+                  <label class="form-label">Payment Method</label>
+                  <select id="payment-method" class="form-control">
+                    <option value="cash">Cash</option>
+                    <option value="upi">UPI</option>
+                  </select>
+                </div>
+              </div>
+              <div class="form-group">
+                <label class="form-label">Notes (Optional)</label>
+                <input id="notes" class="form-control" type="text" placeholder="Any notes for this invoice">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <div class="section-title">Line Items</div>
+              <div class="items-wrap">
+                <table class="items-table" id="items-table">
+                  <thead>
+                    <tr>
+                      <th style="width:30%">Product</th>
+                      <th style="width:18%">Rate (₹)</th>
+                      <th style="width:12%">Qty</th>
+                      <th style="width:12%">Unit</th>
+                      <th style="width:18%">Amount</th>
+                      <th style="width:10%"></th>
+                    </tr>
+                  </thead>
+                  <tbody id="items-tbody"></tbody>
+                </table>
+              </div>
+              <button class="add-row-btn" onclick="addRow()">+ Add Line Item</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Right: GST summary -->
+        <div>
+          <div class="card" style="margin-bottom:16px">
+            <div class="card-body">
+              <div class="section-title">GST Rates</div>
+              <div class="gst-row" style="margin-bottom:10px">
+                <label>CGST %</label>
+                <input id="cgst-rate" class="form-control" type="number" min="0" max="14" step="0.5" value="9" oninput="recalc()">
+              </div>
+              <div class="gst-row">
+                <label>SGST %</label>
+                <input id="sgst-rate" class="form-control" type="number" min="0" max="14" step="0.5" value="9" oninput="recalc()">
+              </div>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-body">
+              <div class="section-title">Invoice Summary</div>
+              <div class="totals-box">
+                <div class="totals-row"><span>Subtotal</span><span id="t-subtotal">₹0.00</span></div>
+                <div class="totals-row"><span id="t-cgst-label">CGST (9%)</span><span id="t-cgst">₹0.00</span></div>
+                <div class="totals-row"><span id="t-sgst-label">SGST (9%)</span><span id="t-sgst">₹0.00</span></div>
+                <div class="totals-row" style="margin-top:6px;padding-top:10px;border-top:2px solid var(--border)">
+                  <span>TOTAL</span><span id="t-total" style="font-size:18px;color:var(--brand)">₹0.00</span>
+                </div>
+              </div>
+              <button class="btn btn-primary" style="width:100%;margin-top:14px;justify-content:center" onclick="submitInvoice()">Create Invoice</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('new-invoice.html'));
+requireAuth();
+
+let products = [], rowCount = 0;
+
+async function init() {
+  try {
+    products = await api.get('/products');
+    const parties = await api.get('/parties');
+    const sel = document.getElementById('party-select');
+    parties.forEach(p => {
+      const o = document.createElement('option');
+      o.value = p.id; o.textContent = p.name;
+      sel.appendChild(o);
+    });
+    addRow();
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function productOptions(selectedId) {
+  return products.map(p =>
+    `<option value="${p.id}" data-price="${p.price}" data-unit="${p.unit||'pcs'}" ${p.id==selectedId?'selected':''}>${escHtml(p.name)}</option>`
+  ).join('');
+}
+
+function addRow() {
+  rowCount++;
+  const id = 'row-' + rowCount;
+  const tbody = document.getElementById('items-tbody');
+  const tr = document.createElement('tr');
+  tr.id = id;
+  tr.innerHTML = `
+    <td>
+      <select class="item-product" onchange="onProductSelect(this, '${id}')">
+        <option value="">-- Select or type --</option>
+        ${productOptions()}
+        <option value="custom">Custom item...</option>
+      </select>
+      <input class="item-name" type="text" placeholder="Product name" style="display:none;margin-top:4px">
+    </td>
+    <td><input class="item-rate" type="number" min="0" step="0.01" placeholder="0.00" oninput="recalc()"></td>
+    <td><input class="item-qty"  type="number" min="1" value="1" oninput="recalc()"></td>
+    <td><input class="item-unit" type="text" value="pcs" style="width:60px"></td>
+    <td><input class="item-amt"  type="text" readonly style="background:var(--surface2);color:var(--text2)"></td>
+    <td>
+      <button onclick="removeRow('${id}')" style="background:none;border:none;cursor:pointer;color:var(--danger);padding:4px" title="Remove">
+        <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </td>`;
+  tbody.appendChild(tr);
+}
+
+function onProductSelect(sel, rowId) {
+  const tr = document.getElementById(rowId);
+  const nameInput = tr.querySelector('.item-name');
+  const rateInput = tr.querySelector('.item-rate');
+  const unitInput = tr.querySelector('.item-unit');
+  if (sel.value === 'custom') {
+    nameInput.style.display = 'block';
+    nameInput.focus();
+    rateInput.value = '';
+    unitInput.value = 'pcs';
+  } else if (sel.value) {
+    const opt = sel.selectedOptions[0];
+    rateInput.value = opt.dataset.price;
+    unitInput.value = opt.dataset.unit;
+    nameInput.style.display = 'none';
+  } else {
+    nameInput.style.display = 'none';
+    rateInput.value = '';
+  }
+  recalc();
+}
+
+function removeRow(id) {
+  const el = document.getElementById(id);
+  if (el) el.remove();
+  recalc();
+}
+
+function recalc() {
+  const rows = document.querySelectorAll('#items-tbody tr');
+  let subtotal = 0;
+  rows.forEach(tr => {
+    const rate = parseFloat(tr.querySelector('.item-rate')?.value) || 0;
+    const qty = parseInt(tr.querySelector('.item-qty')?.value) || 0;
+    const amt = rate * qty;
+    const amtEl = tr.querySelector('.item-amt');
+    if (amtEl) amtEl.value = fmtRupee(amt);
+    subtotal += amt;
+  });
+  const cgst = parseFloat(document.getElementById('cgst-rate').value) || 0;
+  const sgst = parseFloat(document.getElementById('sgst-rate').value) || 0;
+  const cgstAmt = subtotal * cgst / 100;
+  const sgstAmt = subtotal * sgst / 100;
+  const total = subtotal + cgstAmt + sgstAmt;
+
+  document.getElementById('t-subtotal').textContent = fmtRupee(subtotal);
+  document.getElementById('t-cgst-label').textContent = `CGST (${cgst}%)`;
+  document.getElementById('t-sgst-label').textContent = `SGST (${sgst}%)`;
+  document.getElementById('t-cgst').textContent = fmtRupee(cgstAmt);
+  document.getElementById('t-sgst').textContent = fmtRupee(sgstAmt);
+  document.getElementById('t-total').textContent = fmtRupee(total);
+}
+
+async function submitInvoice() {
+  const rows = document.querySelectorAll('#items-tbody tr');
+  const items = [];
+  for (const tr of rows) {
+    const sel = tr.querySelector('.item-product');
+    const nameInput = tr.querySelector('.item-name');
+    const productId = sel?.value;
+    let productName = '';
+    if (productId === 'custom' || !productId) {
+      productName = nameInput?.value?.trim();
+    } else if (productId) {
+      productName = sel.selectedOptions[0]?.textContent;
+    }
+    const rate = parseFloat(tr.querySelector('.item-rate')?.value);
+    const qty = parseInt(tr.querySelector('.item-qty')?.value);
+    const unit = tr.querySelector('.item-unit')?.value || 'pcs';
+    if (!productName) continue;
+    if (!rate || !qty) { showToast(`Fill rate and quantity for all items`, 'error'); return; }
+    items.push({ product_id: (productId && productId !== 'custom') ? productId : null, product_name: productName, rate, quantity: qty, unit });
+  }
+  if (!items.length) { showToast('Add at least one line item', 'error'); return; }
+
+  const body = {
+    party_id: document.getElementById('party-select').value || null,
+    payment_method: document.getElementById('payment-method').value,
+    notes: document.getElementById('notes').value.trim() || null,
+    cgst_rate: parseFloat(document.getElementById('cgst-rate').value) || 9,
+    sgst_rate: parseFloat(document.getElementById('sgst-rate').value) || 9,
+    items
+  };
+
+  try {
+    const inv = await api.post('/invoices', body);
+    showToast(`Invoice ${inv.invoice_no} created!`, 'success');
+    setTimeout(() => window.location.href = 'invoices.html', 1000);
+  } catch(e) { showToast(e.message, 'error'); }
+}
+
+function escHtml(s) { return String(s||'').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+init();
+</script>
+</body>
+</html>

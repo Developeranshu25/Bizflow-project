@@ -1,0 +1,91 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard – Bizflow</title>
+<link rel="stylesheet" href="../css/style.css">
+</head>
+<body>
+<div class="app-layout" id="app">
+  <div class="main-content">
+    <div class="topbar">
+      <span class="topbar-title">Dashboard</span>
+      <div class="topbar-actions">
+        <a href="new-invoice.html" class="btn btn-primary">
+          <svg width="14" height="14" fill="none" stroke="currentColor" viewBox="0 0 24 24" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          New Invoice
+        </a>
+      </div>
+    </div>
+    <div class="page-content">
+      <div class="stats-grid" id="stats-grid">
+        <div class="stat-card"><div class="stat-label">This Month Sales</div><div class="stat-value brand" id="stat-sales">—</div></div>
+        <div class="stat-card"><div class="stat-label">Invoices This Month</div><div class="stat-value" id="stat-invoices">—</div></div>
+        <div class="stat-card"><div class="stat-label">Unpaid Invoices</div><div class="stat-value danger" id="stat-unpaid">—</div></div>
+        <div class="stat-card"><div class="stat-label">Low Stock Items</div><div class="stat-value warning" id="stat-lowstock">—</div></div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">
+          <span class="card-title">Recent Invoices</span>
+          <a href="invoices.html" class="btn btn-secondary btn-sm">View All</a>
+        </div>
+        <div class="table-wrap">
+          <table class="table">
+            <thead>
+              <tr>
+                <th>Invoice No</th>
+                <th>Party</th>
+                <th>Date</th>
+                <th>Method</th>
+                <th>Total</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody id="recent-tbody">
+              <tr><td colspan="7" style="text-align:center;padding:40px;color:var(--text3)">Loading...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="../js/api.js"></script>
+<script src="../js/sidebar.js"></script>
+<script>
+document.getElementById('app').insertAdjacentHTML('afterbegin', renderSidebar('dashboard.html'));
+requireAuth();
+
+async function load() {
+  try {
+    const d = await api.get('/reports/dashboard');
+    document.getElementById('stat-sales').textContent = fmtRupee(d.monthlySales);
+    document.getElementById('stat-invoices').textContent = d.monthlyInvoices;
+    document.getElementById('stat-unpaid').textContent = d.unpaidCount;
+    document.getElementById('stat-lowstock').textContent = d.lowStockCount;
+
+    const tbody = document.getElementById('recent-tbody');
+    if (!d.recentInvoices.length) {
+      tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><p>No invoices yet</p></div></td></tr>`;
+      return;
+    }
+    tbody.innerHTML = d.recentInvoices.map(inv => `
+      <tr>
+        <td><strong>${inv.invoice_no}</strong></td>
+        <td>${inv.party_name || '<span style="color:var(--text3)">Walk-in</span>'}</td>
+        <td>${fmtDate(inv.created_at)}</td>
+        <td><span class="badge badge-info">${(inv.payment_method||'').toUpperCase()}</span></td>
+        <td><strong>${fmtRupee(inv.total)}</strong></td>
+        <td>${statusBadge(inv.status)}</td>
+        <td><a href="invoices.html?id=${inv.id}" class="btn btn-secondary btn-sm">View</a></td>
+      </tr>`).join('');
+  } catch(e) { showToast(e.message, 'error'); }
+}
+load();
+</script>
+</body>
+</html>

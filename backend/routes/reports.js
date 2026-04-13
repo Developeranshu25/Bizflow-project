@@ -1,0 +1,11 @@
+const express = require('express');
+const router = express.Router();
+const ctrl = require('../controllers/reportController');
+const auth = require('../middleware/authMiddleware');
+router.use(auth);
+router.get('/dashboard', ctrl.getDashboard);
+router.get('/stock', ctrl.getStock);
+router.get('/sales', ctrl.getMonthlySales);
+router.get('/stock/pdf', ctrl.downloadStockPDF);
+router.get('/sales/pdf', ctrl.downloadSalesPDF);
+module.exports = router;
