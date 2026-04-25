@@ -22,3 +22,7 @@ A complete web-based billing and inventory management system for small businesse
 - Node.js v18 or higher
 - MySQL 8.0 or higher (MySQL 9.x Community Server is also fine)
 
+## Screenshots
+Here are some screenshots of the project to give you an idea of its features and functionality:
+
+![Bizflow login page .png]
