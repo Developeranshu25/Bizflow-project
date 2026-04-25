@@ -25,4 +25,5 @@ A complete web-based billing and inventory management system for small businesse
 ## Screenshots
 Here are some screenshots of the project to give you an idea of its features and functionality:
 
-![Bizflow login page .png]
+![Bizflow login page .png](https://github.com/Developeranshu25/Bizflow-project/blob/51044f49015cc8c6e5dc7b18a28e63d410978077/Bizflow%20%20login%20page%20.png)
+
